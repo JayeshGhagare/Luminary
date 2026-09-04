@@ -1,0 +1,17 @@
+{
+  "name": "meet",
+  "version": "1.0.0",
+  "description": "Google Meet Clone with 5 Themes, Notes Drawer & Screen Share with Audio",
+  "scripts": {
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build:client": "npm run build --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

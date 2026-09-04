@@ -1,0 +1,262 @@
+@import "tailwindcss";
+
+:root {
+  /* Default: Soft Velvet Crimson */
+  --bg-app: #0f1013;
+  --bg-surface: #16171c;
+  --bg-card: #1d1f26;
+  --bg-card-hover: #262933;
+  --bg-input: #131418;
+  --border-color: #2b2e3a;
+  --border-subtle: #20222a;
+  --text-main: #fcfcfd;
+  --text-muted: #9ba0b0;
+  --text-faint: #636878;
+  --accent-color: #ea5b6f;
+  --accent-hover: #f27284;
+  --accent-light: rgba(234, 91, 111, 0.14);
+  --accent-glow: 0 0 25px rgba(234, 91, 111, 0.35);
+  --speaker-ring: 0 0 0 3px #ea5b6f, 0 0 20px rgba(234, 91, 111, 0.55);
+  --card-3d: 0 12px 30px -5px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 20px rgba(234, 91, 111, 0.12);
+  --glass-bg: rgba(22, 23, 28, 0.88);
+  --badge-bg: #ea5b6f;
+  --badge-text: #ffffff;
+}
+
+/* 1. Crimson Velvet Dark (Soft Velvet OLED) */
+[data-theme="crimson"] {
+  --bg-app: #0e0f13;
+  --bg-surface: #15161b;
+  --bg-card: #1c1e26;
+  --bg-card-hover: #252833;
+  --bg-input: #121318;
+  --border-color: #2a2d3a;
+  --border-subtle: #1f212a;
+  --text-main: #fbfcfd;
+  --text-muted: #9ba0b0;
+  --text-faint: #626778;
+  --accent-color: #ea5b6f;
+  --accent-hover: #f27284;
+  --accent-light: rgba(234, 91, 111, 0.14);
+  --accent-glow: 0 0 25px rgba(234, 91, 111, 0.35);
+  --speaker-ring: 0 0 0 3px #ea5b6f, 0 0 20px rgba(234, 91, 111, 0.55);
+  --card-3d: 0 12px 30px -5px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 20px rgba(234, 91, 111, 0.12);
+  --glass-bg: rgba(21, 22, 27, 0.88);
+  --badge-bg: #ea5b6f;
+  --badge-text: #ffffff;
+}
+
+/* 2. Crimson Rose Light (Soft Velvet Light Theme) */
+[data-theme="crimson-light"] {
+  --bg-app: #fbfbfc;
+  --bg-surface: #f4f5f8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8f9fc;
+  --bg-input: #f1f2f6;
+  --border-color: #e2e4ed;
+  --border-subtle: #eceef4;
+  --text-main: #181920;
+  --text-muted: #5e6274;
+  --text-faint: #8a8e9e;
+  --accent-color: #dc354e;
+  --accent-hover: #e84d64;
+  --accent-light: rgba(220, 53, 78, 0.1);
+  --accent-glow: 0 4px 18px rgba(220, 53, 78, 0.22);
+  --speaker-ring: 0 0 0 3px #dc354e, 0 0 16px rgba(220, 53, 78, 0.4);
+  --card-3d: 0 8px 24px -4px rgba(60, 70, 100, 0.08), 0 0 0 1px rgba(220, 53, 78, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --badge-bg: #dc354e;
+  --badge-text: #ffffff;
+}
+
+/* 3. Cinematic Dark (Warm 35mm Amber) */
+[data-theme="cinematic"] {
+  --bg-app: #100f0e;
+  --bg-surface: #171513;
+  --bg-card: #1f1c19;
+  --bg-card-hover: #292521;
+  --bg-input: #151311;
+  --border-color: #35302a;
+  --border-subtle: #26221c;
+  --text-main: #fbf9f6;
+  --text-muted: #b5ada3;
+  --text-faint: #787066;
+  --accent-color: #f09a47;
+  --accent-hover: #f7ad62;
+  --accent-light: rgba(240, 154, 71, 0.15);
+  --accent-glow: 0 0 25px rgba(240, 154, 71, 0.35);
+  --speaker-ring: 0 0 0 3px #f09a47, 0 0 20px rgba(240, 154, 71, 0.5);
+  --card-3d: 0 12px 30px -5px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(240, 154, 71, 0.2), 0 0 20px rgba(240, 154, 71, 0.1);
+  --glass-bg: rgba(23, 21, 19, 0.88);
+  --badge-bg: #f09a47;
+  --badge-text: #12100e;
+}
+
+/* 4. Midnight Ocean (Cyberpunk Neon Abyss) */
+[data-theme="midnight"] {
+  --bg-app: #0b1122;
+  --bg-surface: #101830;
+  --bg-card: #162040;
+  --bg-card-hover: #1e2a52;
+  --bg-input: #0e152a;
+  --border-color: #223260;
+  --border-subtle: #182448;
+  --text-main: #e8f9fb;
+  --text-muted: #8eb3c7;
+  --text-faint: #56768a;
+  --accent-color: #1ee0c5;
+  --accent-hover: #4fead5;
+  --accent-light: rgba(30, 224, 197, 0.14);
+  --accent-glow: 0 0 25px rgba(30, 224, 197, 0.35);
+  --speaker-ring: 0 0 0 3px #1ee0c5, 0 0 22px rgba(30, 224, 197, 0.55);
+  --card-3d: 0 12px 30px -5px rgba(2, 6, 20, 0.8), 0 0 0 1px rgba(30, 224, 197, 0.22), 0 0 20px rgba(30, 224, 197, 0.12);
+  --glass-bg: rgba(16, 24, 48, 0.88);
+  --badge-bg: #1ee0c5;
+  --badge-text: #0b1122;
+}
+
+/* 5. Classic Dark */
+[data-theme="dark"] {
+  --bg-app: #1f2024;
+  --bg-surface: #2b2c32;
+  --bg-card: #35373e;
+  --bg-card-hover: #42444d;
+  --bg-input: #23242a;
+  --border-color: #4b4e57;
+  --border-subtle: #3a3c44;
+  --text-main: #f0f2f5;
+  --text-muted: #a0a4ad;
+  --text-faint: #6e727a;
+  --accent-color: #8cb4f8;
+  --accent-hover: #aecbfa;
+  --accent-light: rgba(140, 180, 248, 0.14);
+  --accent-glow: 0 0 20px rgba(140, 180, 248, 0.3);
+  --speaker-ring: 0 0 0 3px #8cb4f8, 0 0 15px rgba(140, 180, 248, 0.45);
+  --card-3d: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --glass-bg: rgba(43, 44, 50, 0.88);
+  --badge-bg: #8cb4f8;
+  --badge-text: #1f2024;
+}
+
+/* 6. Clean Light */
+[data-theme="light"] {
+  --bg-app: #fafbfe;
+  --bg-surface: #f2f4f8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f7f8fc;
+  --bg-input: #edf0f5;
+  --border-color: #d8dbe5;
+  --border-subtle: #e6e9f1;
+  --text-main: #1f2024;
+  --text-muted: #5e626d;
+  --text-faint: #838792;
+  --accent-color: #1e78f0;
+  --accent-hover: #1766d4;
+  --accent-light: rgba(30, 120, 240, 0.1);
+  --accent-glow: 0 4px 14px rgba(30, 120, 240, 0.25);
+  --speaker-ring: 0 0 0 3px #1e78f0, 0 0 14px rgba(30, 120, 240, 0.35);
+  --card-3d: 0 6px 20px rgba(50, 60, 80, 0.06), 0 0 0 1px #d8dbe5;
+  --glass-bg: rgba(255, 255, 255, 0.94);
+  --badge-bg: #1e78f0;
+  --badge-text: #ffffff;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color);
+}
+
+/* Speaker active glowing animation */
+.speaking-glow {
+  box-shadow: var(--speaker-ring) !important;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 3D Glass card */
+.card-theme {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--card-3d);
+  transition: all 0.25s ease;
+}
+.card-theme:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--accent-color);
+}
+
+/* Floating Emoji Reaction Keyframes */
+@keyframes floatUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1.15);
+  }
+  80% {
+    opacity: 0.95;
+    transform: translateY(-140px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-200px) scale(0.7);
+  }
+}
+
+.reaction-bubble {
+  animation: floatUp 2.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Button control */
+.btn-control {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  transition: all 0.18s ease;
+}
+.btn-control:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
+}
+.btn-control:active {
+  transform: scale(0.96);
+}
+.btn-control.active {
+  background-color: var(--accent-color);
+  color: var(--badge-text);
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
+}
+.btn-danger {
+  background-color: #ea4335 !important;
+  color: #ffffff !important;
+  border-color: #ea4335 !important;
+}
+.btn-danger:hover {
+  background-color: #d93025 !important;
+  box-shadow: 0 0 20px rgba(234, 67, 53, 0.5) !important;
+}
