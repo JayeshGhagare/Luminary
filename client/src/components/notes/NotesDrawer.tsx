@@ -56,11 +56,40 @@ export const NotesDrawer: React.FC = () => {
     return () => clearTimeout(timer);
   }, [localSharedNotes, sharedNotes, updateSharedNotes]);
 
-  // To-Do form state
   const [taskText, setTaskText] = useState('');
   const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [taskAssignee, setTaskAssignee] = useState(userName);
   const [todoFilter, setTodoFilter] = useState<'all' | 'active' | 'completed'>('all');
+
+  // Task Undo State (5s window)
+  const [deletedTaskUndo, setDeletedTaskUndo] = useState<{
+    task: import('../../types').TaskItem;
+    timeoutId: any;
+  } | null>(null);
+
+  const handleDeleteTask = (taskId: string) => {
+    const taskToDelete = tasks.find((t) => t.id === taskId);
+    if (!taskToDelete) return;
+
+    if (deletedTaskUndo?.timeoutId) {
+      clearTimeout(deletedTaskUndo.timeoutId);
+    }
+
+    deleteTask(taskId);
+
+    const timeoutId = setTimeout(() => {
+      setDeletedTaskUndo(null);
+    }, 5000);
+
+    setDeletedTaskUndo({ task: taskToDelete, timeoutId });
+  };
+
+  const handleUndoDelete = () => {
+    if (!deletedTaskUndo) return;
+    clearTimeout(deletedTaskUndo.timeoutId);
+    addTask(deletedTaskUndo.task.text, deletedTaskUndo.task.priority, deletedTaskUndo.task.assignee);
+    setDeletedTaskUndo(null);
+  };
 
   // Save personal notes to localStorage
   useEffect(() => {
@@ -410,7 +439,7 @@ export const NotesDrawer: React.FC = () => {
                   </div>
 
                   <button
-                    onClick={() => deleteTask(t.id)}
+                    onClick={() => handleDeleteTask(t.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-500 transition-opacity cursor-pointer"
                     title="Delete Task"
                   >
@@ -420,6 +449,28 @@ export const NotesDrawer: React.FC = () => {
               ))
             )}
           </div>
+
+          {/* 5-Second Task Undo Toast */}
+          {deletedTaskUndo && (
+            <div
+              className="mt-3 p-2.5 rounded-xl border flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-bottom duration-150"
+              style={{
+                backgroundColor: 'var(--bg-card)',
+                borderColor: 'var(--border-color)',
+              }}
+            >
+              <span className="text-xs truncate mr-2" style={{ color: 'var(--text-main)' }}>
+                Task removed: <strong className="font-semibold">{deletedTaskUndo.task.text}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={handleUndoDelete}
+                className="px-3 py-1 rounded-lg text-xs font-bold btn-primary cursor-pointer flex-shrink-0 transition-transform active:scale-95 shadow-sm"
+              >
+                Undo
+              </button>
+            </div>
+          )}
         </div>
       )}
 

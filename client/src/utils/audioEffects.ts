@@ -2,6 +2,31 @@
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
+  private soundEffectsEnabled: boolean = (() => {
+    try {
+      const stored = localStorage.getItem('luminary_sound_effects_enabled');
+      return stored !== null ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
+  })();
+
+  public isEnabled(): boolean {
+    return this.soundEffectsEnabled;
+  }
+
+  public setEnabled(enabled: boolean) {
+    this.soundEffectsEnabled = enabled;
+    try {
+      localStorage.setItem('luminary_sound_effects_enabled', String(enabled));
+    } catch {}
+  }
+
+  public toggle(): boolean {
+    const nextState = !this.soundEffectsEnabled;
+    this.setEnabled(nextState);
+    return nextState;
+  }
 
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -19,6 +44,7 @@ class SoundEngine {
 
   // Google Meet Hand Raise ping chime
   playHandRaise() {
+    if (!this.soundEffectsEnabled) return;
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -41,6 +67,7 @@ class SoundEngine {
 
   // Reaction pop
   playReactionPop() {
+    if (!this.soundEffectsEnabled) return;
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -63,6 +90,7 @@ class SoundEngine {
 
   // User Join chime
   playUserJoin() {
+    if (!this.soundEffectsEnabled) return;
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -84,6 +112,7 @@ class SoundEngine {
 
   // User Leave chime
   playUserLeave() {
+    if (!this.soundEffectsEnabled) return;
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -105,6 +134,7 @@ class SoundEngine {
 
   // Task completed chime
   playTaskCompleted() {
+    if (!this.soundEffectsEnabled) return;
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;

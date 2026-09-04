@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic,
   MicOff,
@@ -19,10 +19,14 @@ import {
   Palette,
   Maximize,
   Grid,
+  Volume2,
+  VolumeX,
+  Keyboard,
 } from 'lucide-react';
 import { useWebRTC } from '../../context/WebRTCContext';
 import { useTheme } from '../../context/ThemeContext';
 import { ThemeSelector } from '../common/ThemeSelector';
+import { soundEffects } from '../../utils/audioEffects';
 
 export const BottomBar: React.FC = () => {
   const {
@@ -55,6 +59,26 @@ export const BottomBar: React.FC = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [soundEffectsActive, setSoundEffectsActive] = useState(() => soundEffects.isEnabled());
+
+  // Unread chat messages counter
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const prevMessagesLenRef = useRef(messages.length);
+
+  useEffect(() => {
+    if (activeSidebar === 'chat') {
+      setUnreadMessages(0);
+    } else if (messages.length > prevMessagesLenRef.current) {
+      setUnreadMessages((prev) => prev + (messages.length - prevMessagesLenRef.current));
+    }
+    prevMessagesLenRef.current = messages.length;
+  }, [messages.length, activeSidebar]);
+
+  const toggleSoundEffects = () => {
+    const next = soundEffects.toggle();
+    setSoundEffectsActive(next);
+  };
 
   // Time ticker
   useEffect(() => {
@@ -87,6 +111,27 @@ export const BottomBar: React.FC = () => {
         e.preventDefault();
         toggleVideo();
       }
+
+      // Ctrl + H (or Cmd + H): Toggle Hand Raise
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        toggleHandRaise();
+      }
+
+      // Shift + / or ?: Open Keyboard Shortcuts Modal
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setShowShortcutsModal((prev) => !prev);
+      }
+
+      // Escape: Close all open modals & dropdowns
+      if (e.key === 'Escape') {
+        setShowMoreMenu(false);
+        setShowEmojiPicker(false);
+        setShowThemeModal(false);
+        setShowLeaveConfirm(false);
+        setShowShortcutsModal(false);
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -103,7 +148,7 @@ export const BottomBar: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isAudioMuted, toggleAudio, toggleVideo]);
+  }, [isAudioMuted, toggleAudio, toggleVideo, toggleHandRaise]);
 
   const toggleSidebarTab = (tab: typeof activeSidebar) => {
     setActiveSidebar(activeSidebar === tab ? 'none' : tab);
@@ -309,6 +354,54 @@ export const BottomBar: React.FC = () => {
                   <Maximize className="w-4 h-4" style={{ color: 'var(--accent-color)' }} />
                   <div>Toggle Full screen</div>
                 </button>
+
+                {/* Sound Chimes Master Mute Toggle */}
+                <button
+                  onClick={toggleSoundEffects}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors cursor-pointer hover:bg-black/10 dark:hover:bg-white/10"
+                  style={{ color: 'var(--text-main)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    {soundEffectsActive ? (
+                      <Volume2 className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <VolumeX className="w-4 h-4 text-red-400" />
+                    )}
+                    <div>
+                      <div>Sound Chimes</div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        {soundEffectsActive ? 'Join & reaction sounds ON' : 'Muted (silent mode)'}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                      soundEffectsActive
+                        ? 'bg-green-500/20 text-green-500'
+                        : 'bg-red-500/20 text-red-400'
+                    }`}
+                  >
+                    {soundEffectsActive ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+
+                {/* Keyboard Shortcuts Dialog Trigger */}
+                <button
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    setShowShortcutsModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors cursor-pointer hover:bg-black/10 dark:hover:bg-white/10"
+                  style={{ color: 'var(--text-main)' }}
+                >
+                  <Keyboard className="w-4 h-4" style={{ color: 'var(--accent-color)' }} />
+                  <div>
+                    <div>Keyboard Shortcuts</div>
+                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      Press ? anytime
+                    </div>
+                  </div>
+                </button>
               </div>
             )}
           </div>
@@ -359,11 +452,13 @@ export const BottomBar: React.FC = () => {
             title="In-call messages"
           >
             <MessageSquare className="w-5 h-5" />
-            {messages.length > 0 && (
+            {unreadMessages > 0 && (
               <span
-                className="absolute top-1 right-1 w-2 h-2 rounded-full"
+                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white shadow-md animate-pulse"
                 style={{ backgroundColor: 'var(--accent-color)' }}
-              />
+              >
+                {unreadMessages > 99 ? '99+' : unreadMessages}
+              </span>
             )}
           </button>
 
@@ -453,6 +548,79 @@ export const BottomBar: React.FC = () => {
               >
                 Leave Call
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcutsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div
+            className="max-w-md w-full rounded-2xl p-6 border shadow-2xl flex flex-col gap-4 card-theme"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-color)',
+            }}
+          >
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
+              <div className="flex items-center gap-2">
+                <Keyboard className="w-5 h-5" style={{ color: 'var(--accent-color)' }} />
+                <h3 className="text-base font-bold" style={{ color: 'var(--text-main)' }}>
+                  Keyboard Shortcuts
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowShortcutsModal(false)}
+                className="text-xs font-semibold px-2.5 py-1 rounded-full border cursor-pointer hover:bg-black/10 dark:hover:bg-white/10"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-2.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)' }}>
+                <span style={{ color: 'var(--text-main)' }}>Push-to-Talk (Hold to unmute)</span>
+                <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
+                  Space
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)' }}>
+                <span style={{ color: 'var(--text-main)' }}>Toggle Microphone</span>
+                <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
+                  Ctrl + D
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)' }}>
+                <span style={{ color: 'var(--text-main)' }}>Toggle Camera</span>
+                <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
+                  Ctrl + E
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)' }}>
+                <span style={{ color: 'var(--text-main)' }}>Raise / Lower Hand</span>
+                <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
+                  Ctrl + H
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)' }}>
+                <span style={{ color: 'var(--text-main)' }}>Show Shortcuts</span>
+                <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
+                  ?
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)' }}>
+                <span style={{ color: 'var(--text-main)' }}>Close Active Menu or Dialog</span>
+                <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
+                  Esc
+                </kbd>
+              </div>
             </div>
           </div>
         </div>
