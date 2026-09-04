@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Pin, PinOff } from 'lucide-react';
+import { Send, Pin, PinOff, Download } from 'lucide-react';
 import { useWebRTC } from '../../context/WebRTCContext';
 
 export const ChatDrawer: React.FC = () => {
   const {
+    roomId,
     messages,
     sendMessage,
     togglePinMessage,
@@ -25,22 +26,57 @@ export const ChatDrawer: React.FC = () => {
     setInput('');
   };
 
+  const handleExportChat = () => {
+    if (messages.length === 0) return;
+    const header = [
+      `========================================`,
+      ` Luminary Meeting Chat Transcript`,
+      ` Room: ${roomId || 'Meeting'}`,
+      ` Exported: ${new Date().toLocaleString()}`,
+      ` Total Messages: ${messages.length}`,
+      `========================================\n`,
+    ].join('\n');
+
+    const body = messages
+      .map((m) => `[${m.time || new Date(m.timestamp).toLocaleTimeString()}] ${m.senderName}: ${m.text}`)
+      .join('\n');
+
+    const blob = new Blob([header + body], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `luminary-chat-${roomId || 'meeting'}-${Date.now()}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const pinnedMessages = messages.filter((m) => m.isPinned);
 
   const QUICK_EMOJIS = ['👍', '❤️', '👏', '🔥', '🎉', '🚀'];
 
   return (
     <div className="w-full h-full flex flex-col p-4" style={{ color: 'var(--text-main)' }}>
-      {/* Notice Banner */}
+      {/* Notice & Export Banner */}
       <div
-        className="p-3 rounded-xl border text-xs mb-3 flex items-center justify-between"
+        className="p-2.5 rounded-xl border text-xs mb-3 flex items-center justify-between"
         style={{
           backgroundColor: 'var(--bg-input)',
           borderColor: 'var(--border-subtle)',
           color: 'var(--text-muted)',
         }}
       >
-        <span>Messages are visible to everyone in the call.</span>
+        <span className="text-[11px] truncate pr-2">Visible to all attendees.</span>
+        <button
+          onClick={handleExportChat}
+          disabled={messages.length === 0}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/10 dark:hover:bg-white/5 shrink-0"
+          style={{ borderColor: 'var(--border-color)', color: 'var(--text-main)' }}
+          title="Export chat history as .txt"
+          aria-label="Export chat transcript"
+        >
+          <Download className="w-3 h-3" />
+          <span>Export</span>
+        </button>
       </div>
 
       {/* Pinned Messages Banner */}

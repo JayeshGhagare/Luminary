@@ -17,11 +17,14 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
   const [generatedLinkModal, setGeneratedLinkModal] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Generate random 10-character formatted meeting code: xxx-yyyy-zzz
+  // Generate cryptographically random 10-character formatted meeting code: xxx-yyyy-zzz
   const generateMeetingCode = () => {
     const chars = 'abcdefghijklmnopqrstuvwxyz';
-    const rand = (n: number) =>
-      Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const rand = (n: number) => {
+      const arr = new Uint32Array(n);
+      window.crypto.getRandomValues(arr);
+      return Array.from(arr, (val) => chars[val % chars.length]).join('');
+    };
     return `${rand(3)}-${rand(4)}-${rand(3)}`;
   };
 

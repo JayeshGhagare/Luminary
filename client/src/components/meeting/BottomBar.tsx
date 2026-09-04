@@ -27,6 +27,7 @@ import { useWebRTC } from '../../context/WebRTCContext';
 import { useTheme } from '../../context/ThemeContext';
 import { ThemeSelector } from '../common/ThemeSelector';
 import { soundEffects } from '../../utils/audioEffects';
+import { REACTION_EMOJIS } from '../../constants';
 
 export const BottomBar: React.FC = () => {
   const {
@@ -118,6 +119,15 @@ export const BottomBar: React.FC = () => {
         toggleHandRaise();
       }
 
+      // 1 - 9: Quick Emoji Reactions
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '9') {
+        const index = parseInt(e.key, 10) - 1;
+        if (index >= 0 && index < REACTION_EMOJIS.length) {
+          e.preventDefault();
+          sendReaction(REACTION_EMOJIS[index]);
+        }
+      }
+
       // Shift + / or ?: Open Keyboard Shortcuts Modal
       if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
@@ -153,8 +163,6 @@ export const BottomBar: React.FC = () => {
   const toggleSidebarTab = (tab: typeof activeSidebar) => {
     setActiveSidebar(activeSidebar === tab ? 'none' : tab);
   };
-
-  const REACTION_EMOJIS = ['💖', '👍', '🎉', '👏', '😂', '😮', '😢', '🤔', '👎'];
 
   const pendingTasksCount = tasks.filter((t) => !t.completed).length;
 
@@ -234,16 +242,21 @@ export const BottomBar: React.FC = () => {
                   borderColor: 'var(--border-color)',
                 }}
               >
-                {REACTION_EMOJIS.map((emoji) => (
+                {REACTION_EMOJIS.map((emoji, idx) => (
                   <button
                     key={emoji}
                     onClick={() => {
                       sendReaction(emoji);
                       setShowEmojiPicker(false);
                     }}
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-lg hover:scale-125 transition-transform cursor-pointer hover:bg-black/10 dark:hover:bg-white/10"
+                    className="relative w-9 h-9 rounded-full flex items-center justify-center text-lg hover:scale-125 transition-transform cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 group"
+                    title={`Send ${emoji} (Hotkey: ${idx + 1})`}
+                    aria-label={`Send reaction ${emoji} shortcut ${idx + 1}`}
                   >
-                    {emoji}
+                    <span>{emoji}</span>
+                    <span className="absolute -bottom-1 -right-0.5 text-[9px] font-mono font-bold w-3.5 h-3.5 rounded-full bg-black/60 text-white/90 flex items-center justify-center pointer-events-none opacity-60 group-hover:opacity-100">
+                      {idx + 1}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -605,6 +618,13 @@ export const BottomBar: React.FC = () => {
                 <span style={{ color: 'var(--text-main)' }}>Raise / Lower Hand</span>
                 <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
                   Ctrl + H
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)' }}>
+                <span style={{ color: 'var(--text-main)' }}>Quick Reactions (💖, 👍, 🎉, ...)</span>
+                <kbd className="px-2 py-1 rounded bg-black/20 dark:bg-white/10 font-mono font-bold text-[11px]" style={{ color: 'var(--accent-color)' }}>
+                  1 – 9
                 </kbd>
               </div>
 

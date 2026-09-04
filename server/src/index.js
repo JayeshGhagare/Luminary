@@ -90,6 +90,10 @@ io.on('connection', (socket) => {
 
     const cleanRoomId = roomId.trim().slice(0, 50);
 
+    const cleanName = typeof user.name === 'string' && user.name.trim()
+      ? user.name.trim().slice(0, 40)
+      : 'Guest Participant';
+
     // Cancel pending room deletion timer if someone rejoins within grace period
     if (rooms.has(cleanRoomId)) {
       const existingRoom = rooms.get(cleanRoomId);
@@ -106,9 +110,42 @@ io.on('connection', (socket) => {
         });
         return;
       }
+
+      // Access Control: Room Lock & Knocking Queue
+      if (existingRoom.isLocked && existingRoom.participants.size > 0) {
+        const isPreAdmitted = existingRoom.admittedGuests && existingRoom.admittedGuests.has(socket.id);
+        if (!isPreAdmitted) {
+          existingRoom.waitingQueue.set(socket.id, {
+            socketId: socket.id,
+            name: cleanName,
+            avatar: user.avatar || '',
+            timestamp: Date.now(),
+          });
+
+          socket.emit('guest-waiting', {
+            roomId: cleanRoomId,
+            message: 'This meeting is locked by the host. Please wait to be admitted.',
+          });
+
+          // Notify host(s)
+          const queueList = Array.from(existingRoom.waitingQueue.values());
+          for (const p of existingRoom.participants.values()) {
+            if (p.isHost) {
+              io.to(p.socketId).emit('waiting-queue-updated', { waitingQueue: queueList });
+            }
+          }
+          console.log(`Guest ${cleanName} (${socket.id}) placed in waiting queue for locked room ${cleanRoomId}`);
+          return;
+        } else {
+          existingRoom.admittedGuests.delete(socket.id);
+        }
+      }
     } else {
       rooms.set(cleanRoomId, {
         participants: new Map(),
+        isLocked: false,
+        waitingQueue: new Map(),
+        admittedGuests: new Set(),
         notes: '# Meeting Notes\n- Agenda:\n  - Introductions\n  - Discussion\n  - Action items\n',
         tasks: [],
         cleanupTimer: null,
@@ -117,10 +154,6 @@ io.on('connection', (socket) => {
 
     socket.join(cleanRoomId);
     const room = rooms.get(cleanRoomId);
-
-    const cleanName = typeof user.name === 'string' && user.name.trim()
-      ? user.name.trim().slice(0, 40)
-      : 'Guest Participant';
 
     const userData = {
       socketId: socket.id,
@@ -147,6 +180,8 @@ io.on('connection', (socket) => {
       participants: existingUsers,
       notes: room.notes,
       tasks: room.tasks,
+      isLocked: Boolean(room.isLocked),
+      waitingQueue: userData.isHost ? Array.from(room.waitingQueue.values()) : [],
     });
 
     // Broadcast new joiner to room
@@ -325,8 +360,81 @@ io.on('connection', (socket) => {
     console.log(`Host ${socket.id} kicked participant ${targetSocketId} from room ${roomId}`);
   });
 
+  // Host Action: Toggle Room Lock (Protected)
+  socket.on('toggle-room-lock', ({ roomId, isLocked }) => {
+    if (!isRoomHost(roomId, socket.id)) {
+      socket.emit('action-unauthorized', { message: 'Unauthorized: Only the host can lock or unlock the room.' });
+      return;
+    }
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    room.isLocked = typeof isLocked === 'boolean' ? isLocked : !room.isLocked;
+    io.to(roomId).emit('room-lock-changed', { isLocked: room.isLocked });
+    console.log(`Host ${socket.id} changed lock state of room ${roomId} to ${room.isLocked}`);
+  });
+
+  // Host Action: Admit Waiting Guest (Protected)
+  socket.on('admit-guest', ({ roomId, guestSocketId }) => {
+    if (!isRoomHost(roomId, socket.id)) {
+      socket.emit('action-unauthorized', { message: 'Unauthorized: Only the host can admit guests.' });
+      return;
+    }
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    if (room.waitingQueue.has(guestSocketId)) {
+      room.waitingQueue.delete(guestSocketId);
+      if (!room.admittedGuests) room.admittedGuests = new Set();
+      room.admittedGuests.add(guestSocketId);
+
+      io.to(guestSocketId).emit('knock-admitted', { roomId });
+
+      // Notify host with updated queue
+      const queueList = Array.from(room.waitingQueue.values());
+      socket.emit('waiting-queue-updated', { waitingQueue: queueList });
+      console.log(`Host ${socket.id} admitted guest ${guestSocketId} into room ${roomId}`);
+    }
+  });
+
+  // Host Action: Deny Waiting Guest (Protected)
+  socket.on('deny-guest', ({ roomId, guestSocketId }) => {
+    if (!isRoomHost(roomId, socket.id)) {
+      socket.emit('action-unauthorized', { message: 'Unauthorized: Only the host can decline guests.' });
+      return;
+    }
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    if (room.waitingQueue.has(guestSocketId)) {
+      room.waitingQueue.delete(guestSocketId);
+      io.to(guestSocketId).emit('knock-denied', {
+        message: 'The host declined your request to join this meeting.',
+      });
+
+      const queueList = Array.from(room.waitingQueue.values());
+      socket.emit('waiting-queue-updated', { waitingQueue: queueList });
+      console.log(`Host ${socket.id} denied guest ${guestSocketId} for room ${roomId}`);
+    }
+  });
+
   // Disconnection & Host Reassignment
   socket.on('disconnecting', () => {
+    // Clean up from waiting queues if the user was waiting
+    for (const [rId, room] of rooms.entries()) {
+      if (room.waitingQueue && room.waitingQueue.has(socket.id)) {
+        room.waitingQueue.delete(socket.id);
+        const queueList = Array.from(room.waitingQueue.values());
+        for (const p of room.participants.values()) {
+          if (p.isHost) {
+            io.to(p.socketId).emit('waiting-queue-updated', { waitingQueue: queueList });
+          }
+        }
+      }
+      if (room.admittedGuests) {
+        room.admittedGuests.delete(socket.id);
+      }
+    }
     for (const roomId of socket.rooms) {
       if (rooms.has(roomId)) {
         const room = rooms.get(roomId);

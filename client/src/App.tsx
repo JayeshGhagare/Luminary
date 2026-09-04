@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { WebRTCProvider, useWebRTC } from './context/WebRTCContext';
-import { UserX, AlertTriangle, WifiOff } from 'lucide-react';
+import { UserX, AlertTriangle, WifiOff, Lock, ShieldAlert } from 'lucide-react';
 import { Header } from './components/landing/Header';
 import { LandingHero } from './components/landing/LandingHero';
 import { GreenRoom } from './components/lobby/GreenRoom';
 import { MeetingRoom } from './components/meeting/MeetingRoom';
+import { SummaryScreen } from './components/meeting/SummaryScreen';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const MeetAppContent: React.FC = () => {
   const {
@@ -19,6 +21,9 @@ const MeetAppContent: React.FC = () => {
     clearKickedReason,
     joinErrorMessage,
     clearJoinErrorMessage,
+    knockStatus,
+    cancelKnock,
+    summaryStats,
   } = useWebRTC();
 
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
@@ -34,11 +39,14 @@ const MeetAppContent: React.FC = () => {
     }
   }, []);
 
-  // Generate 10-char meeting code
+  // Generate cryptographically random 10-char meeting code
   const generateMeetingCode = () => {
     const chars = 'abcdefghijklmnopqrstuvwxyz';
-    const rand = (n: number) =>
-      Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const rand = (n: number) => {
+      const arr = new Uint32Array(n);
+      window.crypto.getRandomValues(arr);
+      return Array.from(arr, (val) => chars[val % chars.length]).join('');
+    };
     return `${rand(3)}-${rand(4)}-${rand(3)}`;
   };
 
@@ -142,9 +150,83 @@ const MeetAppContent: React.FC = () => {
         </div>
       )}
 
-      {/* Primary views */}
-      {isInCall ? (
-        <MeetingRoom />
+      {/* Knocking / Waiting Room Modal */}
+      {knockStatus === 'waiting' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div
+            className="max-w-sm w-full rounded-3xl p-6 border shadow-2xl flex flex-col gap-5 text-center card-theme"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping" />
+              <div className="relative w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center shadow-md">
+                <Lock className="w-7 h-7" />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-main)' }}>
+                Waiting for Host Approval
+              </h3>
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                This room is locked. The host has been notified that you wish to join and will admit you shortly.
+              </p>
+            </div>
+
+            <button
+              onClick={cancelKnock}
+              className="w-full py-2.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer hover:bg-black/10 dark:hover:bg-white/5"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-main)' }}
+            >
+              Cancel Request
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Knock Denied Modal */}
+      {knockStatus === 'denied' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div
+            className="max-w-sm w-full rounded-3xl p-6 border shadow-2xl flex flex-col gap-4 text-center card-theme"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-red-500/20 text-red-500 flex items-center justify-center mx-auto shadow-md">
+              <ShieldAlert className="w-7 h-7" />
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-main)' }}>
+                Entry Declined
+              </h3>
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                The host has declined your request to join this meeting room.
+              </p>
+            </div>
+
+            <button
+              onClick={cancelKnock}
+              className="w-full py-2.5 rounded-xl text-xs font-bold btn-primary cursor-pointer transition-transform active:scale-98"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Primary views: Summary Screen | Meeting Room | Green Room Lobby | Landing Page */}
+      {summaryStats ? (
+        <SummaryScreen
+          onRejoin={(code) => {
+            setSelectedRoomId(code);
+            setIsInLobby(true);
+          }}
+          onReturnHome={handleBackToLanding}
+        />
+      ) : isInCall ? (
+        <ErrorBoundary fallbackTitle="Meeting Encountered an Error">
+          <MeetingRoom />
+        </ErrorBoundary>
       ) : isInLobby && selectedRoomId ? (
         <div
           className="w-screen min-h-screen flex flex-col transition-colors duration-300"

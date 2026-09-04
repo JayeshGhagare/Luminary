@@ -1,0 +1,32 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: luminary-server
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - CLIENT_URL=http://localhost:3000
+      - NODE_ENV=production
+    networks:
+      - luminary-network
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: luminary-client
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    networks:
+      - luminary-network
+
+networks:
+  luminary-network:
+    driver: bridge

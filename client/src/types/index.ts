@@ -66,3 +66,22 @@ export interface CaptionItem {
   isFinal: boolean;
   timestamp: number;
 }
+
+export interface WaitingGuest {
+  socketId: string;
+  name: string;
+  avatar?: string;
+  timestamp: number;
+}
+
+export interface MeetingSummaryStats {
+  roomId: string;
+  durationSeconds: number;
+  totalParticipants: number;
+  tasksCreated: number;
+  tasksCompleted: number;
+  notesWordCount: number;
+  messagesCount: number;
+  leftAt: number;
+}
+

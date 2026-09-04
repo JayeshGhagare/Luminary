@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import type { Participant, ChatMessage, ReactionItem, TaskItem, CaptionItem, LayoutMode, SidebarTab } from '../types';
+import type { Participant, ChatMessage, ReactionItem, TaskItem, CaptionItem, LayoutMode, SidebarTab, WaitingGuest, MeetingSummaryStats } from '../types';
 import { soundEffects } from '../utils/audioEffects';
 
 const ICE_SERVERS: RTCConfiguration = {
@@ -45,6 +45,19 @@ interface WebRTCContextType {
   clearJoinErrorMessage: () => void;
   actionNotice: string | null;
   isTalkingWhileMuted: boolean;
+
+  // Access Control & Moderation
+  isRoomLocked: boolean;
+  toggleRoomLock: () => void;
+  waitingGuests: WaitingGuest[];
+  admitGuest: (socketId: string) => void;
+  denyGuest: (socketId: string) => void;
+  knockStatus: 'idle' | 'waiting' | 'denied';
+  cancelKnock: () => void;
+
+  // Post-Meeting Summary
+  summaryStats: MeetingSummaryStats | null;
+  clearSummaryStats: () => void;
 
   // Media
   localStream: MediaStream | null;
@@ -111,7 +124,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [roomId, setRoomId] = useState<string | null>(null);
   const [isInCall, setIsInCall] = useState(false);
   const [isHost, setIsHost] = useState(false);
-  const [userName, setUserName] = useState<string>(() => localStorage.getItem('meet_username') || 'Guest ' + Math.floor(100 + Math.random() * 900));
+  const [userName, setUserName] = useState<string>(() => {
+    const saved = localStorage.getItem('meet_username');
+    if (saved) return saved;
+    const num = typeof window !== 'undefined' && window.crypto?.getRandomValues
+      ? (window.crypto.getRandomValues(new Uint16Array(1))[0] % 900) + 100
+      : Math.floor(100 + Math.random() * 900);
+    return `Guest ${num}`;
+  });
 
   // Local media
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -148,6 +168,16 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isTalkingWhileMuted, setIsTalkingWhileMuted] = useState(false);
 
+  // Access control & waiting room state
+  const [isRoomLocked, setIsRoomLocked] = useState(false);
+  const [waitingGuests, setWaitingGuests] = useState<WaitingGuest[]>([]);
+  const [knockStatus, setKnockStatus] = useState<'idle' | 'waiting' | 'denied'>('idle');
+
+  // Post-meeting summary statistics
+  const [summaryStats, setSummaryStats] = useState<MeetingSummaryStats | null>(null);
+  const callStartTimeRef = useRef<number | null>(null);
+  const peakParticipantsRef = useRef<number>(1);
+
   // VAD refs for talking-while-muted and active speaker level detection
   const vadTrackRef = useRef<MediaStreamTrack | null>(null);
   const vadAudioCtxRef = useRef<AudioContext | null>(null);
@@ -157,6 +187,8 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const clearKickedReason = () => setKickedReason(null);
   const clearJoinErrorMessage = () => setJoinErrorMessage(null);
+  const cancelKnock = () => setKnockStatus('idle');
+  const clearSummaryStats = () => setSummaryStats(null);
 
   // Voice Activity Detection: detects speaking while muted & broadcasts volume levels
   useEffect(() => {
@@ -390,8 +422,15 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('room-joined', async ({ self, participants: existingPeers, notes, tasks: roomTasks }) => {
+    socket.on('room-joined', async ({ self, participants: existingPeers, notes, tasks: roomTasks, isLocked, waitingQueue }) => {
       setIsHost(self.isHost);
+      setIsRoomLocked(Boolean(isLocked));
+      if (waitingQueue) setWaitingGuests(waitingQueue);
+      setKnockStatus('idle');
+      setIsInCall(true);
+      callStartTimeRef.current = Date.now();
+      peakParticipantsRef.current = Math.max(peakParticipantsRef.current, existingPeers.length + 1);
+
       if (notes) setSharedNotes(notes);
       if (roomTasks) setTasks(roomTasks);
 
@@ -421,7 +460,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       soundEffects.playUserJoin();
       setParticipants((prev) => {
         if (prev.some((p) => p.socketId === newUser.socketId)) return prev;
-        return [...prev, newUser];
+        const next = [...prev, newUser];
+        peakParticipantsRef.current = Math.max(peakParticipantsRef.current, next.length + 1);
+        return next;
       });
     });
 
@@ -613,6 +654,44 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       leaveMeeting();
     });
 
+    // Access Control Listeners
+    socket.on('guest-waiting', () => {
+      setKnockStatus('waiting');
+      setIsInCall(false);
+    });
+
+    socket.on('knock-admitted', ({ roomId: admittedRoomId }) => {
+      setKnockStatus('idle');
+      soundEffects.playUserJoin();
+      // Re-issue join-room now that the host has admitted us
+      socket.emit('join-room', {
+        roomId: admittedRoomId,
+        user: {
+          id: socket.id,
+          name: userName,
+          isAudioMuted,
+          isVideoMuted,
+          isScreenSharing: false,
+        },
+      });
+    });
+
+    socket.on('knock-denied', () => {
+      setKnockStatus('denied');
+      setIsInCall(false);
+    });
+
+    socket.on('waiting-queue-updated', ({ waitingQueue: newQueue }) => {
+      setWaitingGuests(newQueue || []);
+      if (newQueue && newQueue.length > 0) {
+        soundEffects.playHandRaise();
+      }
+    });
+
+    socket.on('room-lock-changed', ({ isLocked }) => {
+      setIsRoomLocked(Boolean(isLocked));
+    });
+
     return () => {
       socket.off('room-joined');
       socket.off('user-joined');
@@ -635,8 +714,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       socket.off('join-error');
       socket.off('action-unauthorized');
       socket.off('kicked-from-room');
+      socket.off('guest-waiting');
+      socket.off('knock-admitted');
+      socket.off('knock-denied');
+      socket.off('waiting-queue-updated');
+      socket.off('room-lock-changed');
     };
-  }, [socket, localStream, createPeerConnection, activeSpeakerSocketId, pinnedSocketId]);
+  }, [socket, localStream, createPeerConnection, activeSpeakerSocketId, pinnedSocketId, userName, isAudioMuted, isVideoMuted]);
 
   // Join Room
   const joinMeeting = async (targetRoomId: string, name: string) => {
@@ -644,6 +728,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setUserName(name);
     localStorage.setItem('meet_username', name);
     setRoomId(targetRoomId);
+    setKnockStatus('idle');
 
     // Acquire media if not already acquired
     let stream = localStream;
@@ -661,12 +746,31 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isScreenSharing: false,
       },
     });
-
-    setIsInCall(true);
   };
 
   // Leave Meeting
   const leaveMeeting = () => {
+    // Generate post-meeting summary stats before resetting state
+    if (isInCall && roomId) {
+      const duration = callStartTimeRef.current
+        ? Math.max(1, Math.round((Date.now() - callStartTimeRef.current) / 1000))
+        : 0;
+      const stats: MeetingSummaryStats = {
+        roomId,
+        durationSeconds: duration,
+        totalParticipants: Math.max(peakParticipantsRef.current, participants.length + 1),
+        tasksCreated: tasks.length,
+        tasksCompleted: tasks.filter((t) => t.completed).length,
+        notesWordCount: sharedNotes.trim().split(/\s+/).filter(Boolean).length,
+        messagesCount: messages.length,
+        leftAt: Date.now(),
+      };
+      setSummaryStats(stats);
+    }
+
+    callStartTimeRef.current = null;
+    peakParticipantsRef.current = 1;
+
     if (localStream) {
       localStream.getTracks().forEach((t) => t.stop());
       setLocalStream(null);
@@ -849,7 +953,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const sendReaction = (emoji: string) => {
     soundEffects.playReactionPop();
     const newReaction: ReactionItem = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       emoji,
       senderName: userName,
       socketId: socket?.id || 'self',
@@ -890,7 +994,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addTask = (text: string, priority: 'high' | 'medium' | 'low' = 'medium', assignee?: string) => {
     if (!text.trim()) return;
     const newTask: TaskItem = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       text,
       completed: false,
       priority,
@@ -937,7 +1041,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     socket.emit('send-caption', { roomId, text, speakerName: userName, isFinal });
   };
 
-  // Host Controls
+  // Host Controls & Moderation
   const muteAllParticipants = () => {
     if (socket && roomId) {
       socket.emit('mute-all-participants', { roomId });
@@ -947,6 +1051,24 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const kickParticipant = (targetSocketId: string) => {
     if (socket && roomId) {
       socket.emit('kick-participant', { roomId, targetSocketId });
+    }
+  };
+
+  const toggleRoomLock = () => {
+    if (socket && roomId) {
+      socket.emit('toggle-room-lock', { roomId, isLocked: !isRoomLocked });
+    }
+  };
+
+  const admitGuest = (guestSocketId: string) => {
+    if (socket && roomId) {
+      socket.emit('admit-guest', { roomId, guestSocketId });
+    }
+  };
+
+  const denyGuest = (guestSocketId: string) => {
+    if (socket && roomId) {
+      socket.emit('deny-guest', { roomId, guestSocketId });
     }
   };
 
@@ -966,6 +1088,15 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         clearJoinErrorMessage,
         actionNotice,
         isTalkingWhileMuted,
+        isRoomLocked,
+        toggleRoomLock,
+        waitingGuests,
+        admitGuest,
+        denyGuest,
+        knockStatus,
+        cancelKnock,
+        summaryStats,
+        clearSummaryStats,
         localStream,
         screenStream,
         isAudioMuted,
