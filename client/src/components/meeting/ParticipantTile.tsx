@@ -1,11 +1,12 @@
 import React, { useRef, useEffect } from 'react';
-import { MicOff, Hand, Pin, PinOff, MonitorUp } from 'lucide-react';
+import { MicOff, Hand, Pin, PinOff, MonitorUp, Crown } from 'lucide-react';
 import type { Participant } from '../../types';
 import { useAudioVisualizer } from '../../hooks/useAudioVisualizer';
 
 interface ParticipantTileProps {
   participant?: Participant;
   isSelf?: boolean;
+  isHost?: boolean;
   localStream?: MediaStream | null;
   isAudioMuted?: boolean;
   isVideoMuted?: boolean;
@@ -20,6 +21,7 @@ interface ParticipantTileProps {
 export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   participant,
   isSelf = false,
+  isHost = false,
   localStream,
   isAudioMuted = false,
   isVideoMuted = false,
@@ -37,6 +39,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   const mutedAudio = isSelf ? isAudioMuted : participant?.isAudioMuted ?? false;
   const mutedVideo = isSelf ? isVideoMuted : participant?.isVideoMuted ?? false;
   const handRaised = isSelf ? isHandRaised : participant?.isHandRaised ?? false;
+  const isHostUser = isSelf ? isHost : (participant?.isHost ?? false);
 
   // Check if this tile represents a screen share (self or remote)
   const isPresentation = isScreenShareTile || (!isSelf && !!participant?.isScreenSharing);
@@ -143,6 +146,11 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
           <span className="truncate">
             {isPresentation ? `${displayName}'s Screen` : displayName}
           </span>
+          {isHostUser && !isPresentation && (
+            <span title="Meeting Host" className="flex items-center text-amber-400 flex-shrink-0">
+              <Crown className="w-3.5 h-3.5 fill-amber-400" />
+            </span>
+          )}
           {mutedAudio && !isPresentation && (
             <div className="w-4 h-4 rounded-full bg-red-500/80 flex items-center justify-center flex-shrink-0">
               <MicOff className="w-2.5 h-2.5 text-white" />

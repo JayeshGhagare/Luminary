@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Mic, MicOff, Hand, UserX, VolumeX } from 'lucide-react';
+import { Search, Mic, MicOff, Hand, UserX, VolumeX, Crown } from 'lucide-react';
 import { useWebRTC } from '../../context/WebRTCContext';
 
 export const PeopleDrawer: React.FC = () => {
@@ -107,9 +107,10 @@ export const PeopleDrawer: React.FC = () => {
                   </span>
                   {p.isHost && (
                     <span
-                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1"
                       style={{ backgroundColor: 'var(--accent-color)', color: 'var(--badge-text)' }}
                     >
+                      <Crown className="w-2.5 h-2.5 fill-current" />
                       HOST
                     </span>
                   )}

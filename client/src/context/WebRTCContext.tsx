@@ -11,6 +11,22 @@ const ICE_SERVERS: RTCConfiguration = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
+    // Free open relay TURN servers for symmetric NAT / corporate firewall traversal
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelay',
+      credential: 'openrelay',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelay',
+      credential: 'openrelay',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelay',
+      credential: 'openrelay',
+    },
   ],
 };
 
@@ -22,6 +38,13 @@ interface WebRTCContextType {
   isHost: boolean;
   userName: string;
   setUserName: (name: string) => void;
+  isReconnecting: boolean;
+  kickedReason: string | null;
+  clearKickedReason: () => void;
+  joinErrorMessage: string | null;
+  clearJoinErrorMessage: () => void;
+  actionNotice: string | null;
+  isTalkingWhileMuted: boolean;
 
   // Media
   localStream: MediaStream | null;
@@ -118,20 +141,138 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [captions, setCaptions] = useState<CaptionItem[]>([]);
   const [isCaptionsEnabled, setIsCaptionsEnabled] = useState(false);
 
+  // Resilience and error states
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [kickedReason, setKickedReason] = useState<string | null>(null);
+  const [joinErrorMessage, setJoinErrorMessage] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [isTalkingWhileMuted, setIsTalkingWhileMuted] = useState(false);
+
+  // VAD refs for talking-while-muted and active speaker level detection
+  const vadTrackRef = useRef<MediaStreamTrack | null>(null);
+  const vadAudioCtxRef = useRef<AudioContext | null>(null);
+  const vadAnimFrameRef = useRef<number | null>(null);
+  const muteToastTimerRef = useRef<any>(null);
+  const lastSpeakingEmitRef = useRef<number>(0);
+
+  const clearKickedReason = () => setKickedReason(null);
+  const clearJoinErrorMessage = () => setJoinErrorMessage(null);
+
+  // Voice Activity Detection: detects speaking while muted & broadcasts volume levels
+  useEffect(() => {
+    if (!localStream || localStream.getAudioTracks().length === 0) {
+      if (vadAnimFrameRef.current) cancelAnimationFrame(vadAnimFrameRef.current);
+      if (vadTrackRef.current) {
+        vadTrackRef.current.stop();
+        vadTrackRef.current = null;
+      }
+      if (vadAudioCtxRef.current && vadAudioCtxRef.current.state !== 'closed') {
+        vadAudioCtxRef.current.close().catch(() => {});
+        vadAudioCtxRef.current = null;
+      }
+      setIsTalkingWhileMuted(false);
+      return;
+    }
+
+    if (vadTrackRef.current) {
+      vadTrackRef.current.stop();
+    }
+
+    try {
+      const sourceAudioTrack = localStream.getAudioTracks()[0];
+      // Clone track so hardware input persists even when transmission track is disabled
+      const clonedTrack = sourceAudioTrack.clone();
+      clonedTrack.enabled = true;
+      vadTrackRef.current = clonedTrack;
+
+      const vadStream = new MediaStream([clonedTrack]);
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      vadAudioCtxRef.current = audioCtx;
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.5;
+
+      const source = audioCtx.createMediaStreamSource(vadStream);
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const checkVolume = () => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / bufferLength;
+        const normalized = Math.min(100, Math.round((avg / 128) * 100));
+
+        if (isAudioMuted) {
+          if (normalized > 16) {
+            setIsTalkingWhileMuted(true);
+            if (muteToastTimerRef.current) clearTimeout(muteToastTimerRef.current);
+            muteToastTimerRef.current = setTimeout(() => {
+              setIsTalkingWhileMuted(false);
+            }, 2500);
+          }
+        } else {
+          setIsTalkingWhileMuted(false);
+          const now = Date.now();
+          if (socket && roomId && isInCall && now - lastSpeakingEmitRef.current > 160) {
+            lastSpeakingEmitRef.current = now;
+            socket.emit('speaking-level', { roomId, volume: normalized });
+          }
+        }
+
+        vadAnimFrameRef.current = requestAnimationFrame(checkVolume);
+      };
+
+      checkVolume();
+    } catch (e) {
+      console.warn('VAD audio monitor setup error:', e);
+    }
+
+    return () => {
+      if (vadAnimFrameRef.current) cancelAnimationFrame(vadAnimFrameRef.current);
+      if (vadTrackRef.current) {
+        vadTrackRef.current.stop();
+        vadTrackRef.current = null;
+      }
+      if (vadAudioCtxRef.current && vadAudioCtxRef.current.state !== 'closed') {
+        vadAudioCtxRef.current.close().catch(() => {});
+        vadAudioCtxRef.current = null;
+      }
+      if (muteToastTimerRef.current) clearTimeout(muteToastTimerRef.current);
+    };
+  }, [localStream, isAudioMuted, socket, roomId, isInCall]);
+
   // UI state
   const [activeSidebar, setActiveSidebar] = useState<SidebarTab>('none');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('auto');
 
   // Socket initialization
   useEffect(() => {
-    // Connect to backend server (auto-detect hostname for network/mobile testing)
-    const backendUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    // Connect to backend server (configurable via VITE_SERVER_URL)
+    const envUrl = (import.meta as any).env?.VITE_SERVER_URL;
+    const backendUrl = envUrl || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? 'http://localhost:5000'
-      : `http://${window.location.hostname}:5000`;
+      : `http://${window.location.hostname}:5000`);
 
     const socketInstance = io(backendUrl, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 8,
+      reconnectionDelay: 1000,
+    });
+
+    socketInstance.io.on('reconnect_attempt', () => {
+      setIsReconnecting(true);
+    });
+
+    socketInstance.io.on('reconnect', () => {
+      console.log('Socket reconnected successfully');
+      setIsReconnecting(false);
     });
 
     setSocket(socketInstance);
@@ -212,10 +353,33 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') {
+        console.warn(`ICE failed for peer ${remoteSocketId}, attempting ICE restart...`);
+        try {
+          pc.restartIce();
+        } catch (err) {
+          console.error('ICE restart failed:', err);
+        }
+      }
+    };
+
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        pc.close();
-        peerConnections.current.delete(remoteSocketId);
+      if (pc.connectionState === 'failed') {
+        console.warn(`Peer connection failed with ${remoteSocketId}`);
+        try {
+          pc.restartIce();
+        } catch {
+          pc.close();
+          peerConnections.current.delete(remoteSocketId);
+        }
+      } else if (pc.connectionState === 'disconnected') {
+        setTimeout(() => {
+          if (pc.connectionState === 'disconnected') {
+            pc.close();
+            peerConnections.current.delete(remoteSocketId);
+          }
+        }, 4000);
       }
     };
 
@@ -418,9 +582,34 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
-    // Host kick
-    socket.on('kicked-from-room', () => {
-      alert('You have been removed from the meeting by the host.');
+    // Host reassignment listener
+    socket.on('host-reassigned', ({ newHostSocketId }) => {
+      if (newHostSocketId === socket.id) {
+        setIsHost(true);
+      }
+      setParticipants((prev) =>
+        prev.map((p) => ({
+          ...p,
+          isHost: p.socketId === newHostSocketId,
+        }))
+      );
+    });
+
+    // Room join error (e.g. room full / invalid room)
+    socket.on('join-error', ({ message }) => {
+      setJoinErrorMessage(message || 'Unable to join meeting.');
+      leaveMeeting();
+    });
+
+    // Unauthorized action feedback
+    socket.on('action-unauthorized', ({ message }) => {
+      setActionNotice(message || 'Only the meeting host can perform this action.');
+      setTimeout(() => setActionNotice(null), 4000);
+    });
+
+    // Host kick (non-blocking in-app notification)
+    socket.on('kicked-from-room', ({ reason } = {}) => {
+      setKickedReason(reason || 'You were removed from the meeting by the host.');
       leaveMeeting();
     });
 
@@ -442,6 +631,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       socket.off('receive-shared-tasks');
       socket.off('receive-caption');
       socket.off('force-mute-mic');
+      socket.off('host-reassigned');
+      socket.off('join-error');
+      socket.off('action-unauthorized');
       socket.off('kicked-from-room');
     };
   }, [socket, localStream, createPeerConnection, activeSpeakerSocketId, pinnedSocketId]);
@@ -485,6 +677,20 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     peerConnections.current.forEach((pc) => pc.close());
     peerConnections.current.clear();
+
+    if (vadTrackRef.current) {
+      vadTrackRef.current.stop();
+      vadTrackRef.current = null;
+    }
+    if (vadAudioCtxRef.current && vadAudioCtxRef.current.state !== 'closed') {
+      vadAudioCtxRef.current.close().catch(() => {});
+      vadAudioCtxRef.current = null;
+    }
+    if (vadAnimFrameRef.current) {
+      cancelAnimationFrame(vadAnimFrameRef.current);
+      vadAnimFrameRef.current = null;
+    }
+    setIsTalkingWhileMuted(false);
 
     setIsInCall(false);
     setParticipants([]);
@@ -753,6 +959,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isHost,
         userName,
         setUserName,
+        isReconnecting,
+        kickedReason,
+        clearKickedReason,
+        joinErrorMessage,
+        clearJoinErrorMessage,
+        actionNotice,
+        isTalkingWhileMuted,
         localStream,
         screenStream,
         isAudioMuted,

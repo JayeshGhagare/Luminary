@@ -15,6 +15,7 @@ export const VideoGrid: React.FC = () => {
     pinnedSocketId,
     setPinnedSocketId,
     layoutMode,
+    isHost,
   } = useWebRTC();
 
   // Check if ANY participant in the room is sharing their screen (local or remote)
@@ -61,6 +62,7 @@ export const VideoGrid: React.FC = () => {
             /* Spotlight self */
             <ParticipantTile
               isSelf={true}
+              isHost={isHost}
               localStream={localStream}
               isAudioMuted={isAudioMuted}
               isVideoMuted={isVideoMuted}
@@ -79,6 +81,7 @@ export const VideoGrid: React.FC = () => {
             <div className="w-48 lg:w-full h-full lg:h-44 flex-shrink-0">
               <ParticipantTile
                 isSelf={true}
+                isHost={isHost}
                 localStream={localStream}
                 isAudioMuted={isAudioMuted}
                 isVideoMuted={isVideoMuted}
@@ -129,6 +132,7 @@ export const VideoGrid: React.FC = () => {
         <div className="w-full h-full min-h-[180px] max-h-[85vh]">
           <ParticipantTile
             isSelf={true}
+            isHost={isHost}
             localStream={localStream}
             isAudioMuted={isAudioMuted}
             isVideoMuted={isVideoMuted}

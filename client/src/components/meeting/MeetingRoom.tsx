@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, MicOff, ShieldAlert } from 'lucide-react';
 import { VideoGrid } from './VideoGrid';
 import { BottomBar } from './BottomBar';
 import { CaptionsAndReactions } from './CaptionsAndReactions';
@@ -11,7 +11,7 @@ import { useWebRTC } from '../../context/WebRTCContext';
 import { useTheme } from '../../context/ThemeContext';
 
 export const MeetingRoom: React.FC = () => {
-  const { activeSidebar, setActiveSidebar, roomId } = useWebRTC();
+  const { activeSidebar, setActiveSidebar, roomId, actionNotice, isTalkingWhileMuted } = useWebRTC();
   const { currentThemeConfig } = useTheme();
 
   return (
@@ -50,6 +50,14 @@ export const MeetingRoom: React.FC = () => {
           Luminary
         </div>
       </header>
+
+      {/* Unauthorized / Host Action Notice Toast */}
+      {actionNotice && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/95 text-white shadow-2xl text-xs font-semibold backdrop-blur-md animate-in fade-in slide-in-from-top duration-200 border border-red-400/30">
+          <ShieldAlert className="w-4 h-4 text-white" />
+          <span>{actionNotice}</span>
+        </div>
+      )}
 
       {/* Center Stage: Video Grid + Sliding Sidebars */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -103,6 +111,16 @@ export const MeetingRoom: React.FC = () => {
           </aside>
         )}
       </div>
+
+      {/* Talking While Muted Floating Notification Pill */}
+      {isTalkingWhileMuted && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-red-600/95 text-white shadow-2xl backdrop-blur-md animate-bounce border border-red-400/30 select-none">
+          <MicOff className="w-4 h-4 text-white animate-pulse" />
+          <span className="text-xs font-semibold">
+            You are muted. Press <kbd className="px-1.5 py-0.5 rounded bg-black/40 text-[10px] font-mono">Space</kbd> or click mic to speak
+          </span>
+        </div>
+      )}
 
       {/* Bottom Controls Bar */}
       <BottomBar />

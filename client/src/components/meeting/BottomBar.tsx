@@ -54,6 +54,7 @@ export const BottomBar: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   // Time ticker
   useEffect(() => {
@@ -314,7 +315,7 @@ export const BottomBar: React.FC = () => {
 
           {/* End Call Button */}
           <button
-            onClick={leaveMeeting}
+            onClick={() => setShowLeaveConfirm(true)}
             className="w-14 h-11 md:w-16 md:h-12 rounded-full flex items-center justify-center btn-danger shadow-lg transition-all transform active:scale-95 cursor-pointer ml-1"
             title="Leave call"
           >
@@ -403,6 +404,56 @@ export const BottomBar: React.FC = () => {
               Close
             </button>
             <ThemeSelector onClose={() => setShowThemeModal(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Leave Meeting Confirmation Dialog */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div
+            className="max-w-sm w-full rounded-2xl p-6 border shadow-2xl flex flex-col gap-4 text-center card-theme"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-color)',
+            }}
+          >
+            <div className="w-14 h-14 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto">
+              <PhoneOff className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-main)' }}>
+                Leave meeting?
+              </h3>
+              <p className="text-xs mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                {isHost && participants.length > 0
+                  ? 'You are the host. If you leave, host privileges will automatically be reassigned to another participant.'
+                  : 'Are you sure you want to leave this call? You can rejoin anytime with the meeting code.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                style={{
+                  borderColor: 'var(--border-color)',
+                  color: 'var(--text-main)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaveConfirm(false);
+                  leaveMeeting();
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold btn-danger cursor-pointer shadow-md transition-transform active:scale-98"
+              >
+                Leave Call
+              </button>
+            </div>
           </div>
         </div>
       )}

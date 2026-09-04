@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   CheckSquare,
@@ -31,6 +31,31 @@ export const NotesDrawer: React.FC = () => {
     return localStorage.getItem(`meet_personal_notes_${roomId}`) || '# My Private Notes\n- Key takeaways:\n';
   });
 
+  // Local state for debounced shared notes (350ms)
+  const [localSharedNotes, setLocalSharedNotes] = useState(sharedNotes);
+  const isTypingSharedRef = useRef(false);
+
+  // Sync external remote shared notes updates when not actively typing
+  useEffect(() => {
+    if (!isTypingSharedRef.current) {
+      setLocalSharedNotes(sharedNotes);
+    }
+  }, [sharedNotes]);
+
+  // Debounce shared notes broadcasting by 350ms
+  useEffect(() => {
+    if (localSharedNotes === sharedNotes) {
+      isTypingSharedRef.current = false;
+      return;
+    }
+    isTypingSharedRef.current = true;
+    const timer = setTimeout(() => {
+      updateSharedNotes(localSharedNotes);
+      isTypingSharedRef.current = false;
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [localSharedNotes, sharedNotes, updateSharedNotes]);
+
   // To-Do form state
   const [taskText, setTaskText] = useState('');
   const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
@@ -46,7 +71,7 @@ export const NotesDrawer: React.FC = () => {
 
   // Export Notes as Markdown file
   const handleExportMarkdown = () => {
-    const textToExport = notesMode === 'shared' ? sharedNotes : personalNotes;
+    const textToExport = notesMode === 'shared' ? localSharedNotes : personalNotes;
     const blob = new Blob([textToExport], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -66,7 +91,9 @@ export const NotesDrawer: React.FC = () => {
   // Pre-configured structured meeting templates
   const applyTemplate = (templateContent: string) => {
     if (notesMode === 'shared') {
-      updateSharedNotes(sharedNotes + '\n\n' + templateContent);
+      const updated = localSharedNotes + '\n\n' + templateContent;
+      setLocalSharedNotes(updated);
+      updateSharedNotes(updated);
     } else {
       setPersonalNotes(personalNotes + '\n\n' + templateContent);
     }
@@ -96,10 +123,24 @@ export const NotesDrawer: React.FC = () => {
     },
   ];
 
+  const priorityWeight: Record<'high' | 'medium' | 'low', number> = {
+    high: 3,
+    medium: 2,
+    low: 1,
+  };
+
   const filteredTasks = tasks.filter((t) => {
     if (todoFilter === 'active') return !t.completed;
     if (todoFilter === 'completed') return t.completed;
     return true;
+  });
+
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    const pA = priorityWeight[a.priority] || 1;
+    const pB = priorityWeight[b.priority] || 1;
+    if (pB !== pA) return pB - pA;
+    return b.createdAt - a.createdAt;
   });
 
   return (
@@ -193,10 +234,10 @@ export const NotesDrawer: React.FC = () => {
 
           {/* Text Editor Area */}
           <textarea
-            value={notesMode === 'shared' ? sharedNotes : personalNotes}
+            value={notesMode === 'shared' ? localSharedNotes : personalNotes}
             onChange={(e) => {
               if (notesMode === 'shared') {
-                updateSharedNotes(e.target.value);
+                setLocalSharedNotes(e.target.value);
               } else {
                 setPersonalNotes(e.target.value);
               }
@@ -310,7 +351,7 @@ export const NotesDrawer: React.FC = () => {
 
           {/* Task List */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {filteredTasks.length === 0 ? (
+            {sortedTasks.length === 0 ? (
               <div className="h-48 flex flex-col items-center justify-center text-center">
                 <CheckSquare className="w-8 h-8 mb-2 opacity-30" style={{ color: 'var(--accent-color)' }} />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -318,7 +359,7 @@ export const NotesDrawer: React.FC = () => {
                 </span>
               </div>
             ) : (
-              filteredTasks.map((t) => (
+              sortedTasks.map((t) => (
                 <div
                   key={t.id}
                   className="flex items-start justify-between p-3 rounded-xl border transition-all group"
